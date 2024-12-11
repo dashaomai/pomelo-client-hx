@@ -1,0 +1,15 @@
+{
+    "name": "pomelo-client",
+    "url": "",
+    "license": "MIT",
+    "tags": ["pomelo", "pinus", "pitaya", "client", "websocket"],
+    "description": "This library is a client for pomelo bi-communication, compatible with pinus, nano and pitaya.",
+    "version": "0.1.0",
+    "classPath": "src",
+    "releasenote": "First we just support pomelo.",
+    "contributors": ["dashaomai"],
+    "dependencies": {
+        "colyseus-websocket": "1.0.14"
+    },
+    "main": "client.Main"
+}
