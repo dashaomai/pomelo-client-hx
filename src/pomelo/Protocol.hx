@@ -1,4 +1,4 @@
-package client;
+package pomelo;
 
 import haxe.io.Bytes;
 import haxe.io.Encoding;

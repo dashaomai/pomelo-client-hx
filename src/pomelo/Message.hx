@@ -1,10 +1,9 @@
-package client;
+package pomelo;
 
-import client.Consts.ProtocolDef;
-import client.Consts.MessageType;
+import pomelo.Consts.ProtocolDef;
+import pomelo.Consts.MessageType;
 import haxe.io.Bytes;
 import haxe.io.Encoding;
-
 
 typedef MessageData = {
     final id: Int;
@@ -15,6 +14,9 @@ typedef MessageData = {
     final body: Bytes;
 }
 
+/**
+ * Message process
+ **/
 class Message {
 
 

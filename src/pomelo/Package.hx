@@ -1,10 +1,10 @@
-package client;
+package pomelo;
 
-import client.Consts.ProtocolDef;
+import pomelo.Consts.ProtocolDef;
 import haxe.io.Bytes;
 
 /**
- * 封包
+ * Package process
  */
 class Package {
     /* static public final TYPE_HANDSHAKE = 1;
