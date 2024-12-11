@@ -1,3 +1,9 @@
 /.idea
 /.vscode
+/.haxelib
+
+*.swf
+*.js
+*.js.map
+
 **/.DS_Store
