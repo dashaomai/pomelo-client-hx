@@ -9,6 +9,7 @@
     "releasenote": "First we just support pomelo.",
     "contributors": ["dashaomai"],
     "dependencies": {
+        "Emitter": "0.9.1",
         "colyseus-websocket": "1.0.14"
     },
     "main": "client.Main"
