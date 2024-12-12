@@ -65,6 +65,7 @@ class Client {
     var nextHeartbeatTimeout: Int;
     var gapThreshold: Int;
     var heartbeatTimer: Timer;
+    var heartbeatTimeoutTimer: Timer;
 
     final encode: Any;
     final decode: Any;
@@ -87,34 +88,34 @@ class Client {
         ?initialCallback: Void -> Void
     ) {
         // TODO
-        this.decodeIO_encoder = null;
-        this.decodeIO_decoder = null;
+        decodeIO_encoder = null;
+        decodeIO_decoder = null;
 
         this.url = url;
 
         #if sys
-        this.socketTicker = new Timer(100);
-        this.socketTicker.run = () -> {
-            if (this.socket != null) {
-                this.socket.process();
+        socketTicker = new Timer(100);
+        socketTicker.run = () -> {
+            if (socket != null) {
+                socket.process();
             }
         };
         #end
 
-        this.emitter = new Emitter();
+        emitter = new Emitter();
 
-        this.decode = this.default_decode;
-        this.encode = this.default_encode;
+        decode = default_decode;
+        encode = default_encode;
 
-        this.routeDict = new Map();
-        this.routeAbbrs = new Map();
-        this.pendingRequests = new Vector(128);
+        routeDict = new Map();
+        routeAbbrs = new Map();
+        pendingRequests = new Vector(128);
 
         if (handshakeCallback != null) {
-            this.handshake_callback = handshakeCallback;
+            handshake_callback = handshakeCallback;
         }
         if (initialCallback != null) {
-            this.initial_callback = initialCallback;
+            initial_callback = initialCallback;
         }
     }
 
@@ -123,15 +124,15 @@ class Client {
 
         maxReconnectAttempts = params?.maxReconnectAttempts ?? Client.DEFAULT_MAX_RECONNECT_ATTEMPTS;
 
-        this.socket = WebSocket.create(url, [], true);
-        this.socket.onopen = function (): Void {
-            if (this.reconnect) {
-                this.emitter.emit(Client.ON_RECONNECT);
+        socket = WebSocket.create(url, [], true);
+        socket.onopen = function (): Void {
+            if (reconnect) {
+                emitter.emit(Client.ON_RECONNECT);
             }
 
             trace('pomelo client onOpen');
 
-            this.reset();
+            reset();
 
             final packet = Package.encode(
                 PackageType.HANDSHAKE,
@@ -140,36 +141,97 @@ class Client {
                 ),
             );
 
-            this.send(packet);
+            send(packet);
         };
-        this.socket.onmessageBytes = function (message: Bytes): Void {
+        socket.onmessageBytes = function (message: Bytes): Void {
             trace('pomelo client receive ${message.length} bytes.');
 
-            this.process_package(Package.decode(message));
+            process_package(Package.decode(message));
 
-            if (this.heartbeatTimeout > 0) {
-                this.nextHeartbeatTimeout = Std.int(Date.now().getTime()) + this.heartbeatTimeout;
+            if (heartbeatTimeout > 0) {
+                nextHeartbeatTimeout = Std.int(Date.now().getTime()) + heartbeatTimeout;
             }
         };
-        this.socket.onmessageString = function (message: String): Void {
+        socket.onmessageString = function (message: String): Void {
             trace(message);
         };
-        this.socket.onerror = function (message: String): Void {
+        socket.onerror = function (message: String): Void {
             trace('pomelo client error:', message);
 
-            this.emitter.emit(ON_IO_ERROR, message);
+            emitter.emit(ON_IO_ERROR, message);
         };
-        this.socket.onclose = function (?evt: Dynamic): Void {
+        socket.onclose = function (?evt: Dynamic): Void {
             trace('pomelo client closed.');
 
-            this.emitter.emit(ON_CLOSE, evt);
+            emitter.emit(ON_CLOSE, evt);
         };
+    }
+
+    function disconnect() {
+        if (socket != null) {
+            socket.close();
+            trace('pomelo client disconnect');
+            socket = null;
+        }
+
+        if (heartbeatTimer != null) {
+            heartbeatTimer.stop();
+            heartbeatTimer = null;
+        }
+        if (heartbeatTimeoutTimer != null) {
+            heartbeatTimeoutTimer.stop();
+            heartbeatTimeoutTimer = null;
+        }
+
     }
 
     function send(packet: Bytes): Void {
         trace('pomelo client send ${packet.length} bytes.');
 
-        this.socket.sendBytes(packet);
+        try {
+            socket.sendBytes(packet);
+        } catch (e) {
+            trace('pomelo client meet error: $e');
+        }
+    }
+
+    function heartbeat(): Void {
+        trace('pomelo client heartbeat received.');
+
+        if (heartbeatInterval == 0) {
+            // no heartbeat
+            return;
+        } else if (heartbeatTimer != null) {
+            // already in a heartbeat loop
+            return;
+        }
+        
+        trace('pomelo client heartbeat actived.');
+
+        var pkg = Package.encode(PackageType.HEARTBEAT);
+
+        if (heartbeatTimeoutTimer != null) {
+            heartbeatTimeoutTimer.stop();
+            heartbeatTimeoutTimer = null;
+        }
+
+        heartbeatTimer = new Timer(heartbeatInterval);
+        heartbeatTimer.run = () -> {
+            trace('pomelo client send heartbeat.');
+            send(pkg);
+
+            // reset timeout
+            if (heartbeatTimeoutTimer != null) {
+                heartbeatTimeoutTimer.stop();
+                heartbeatTimeoutTimer = null;
+            }
+
+            heartbeatTimeoutTimer = Timer.delay(() -> {
+                trace('pomelo client heartbeat timeout.');
+                emitter.emit(ON_ERROR, 'heartbeat timeout');
+                disconnect();
+            }, heartbeatTimeout);
+        };
     }
 
     function process_package(msgs: Array<PackageData>): Void {
@@ -177,8 +239,8 @@ class Client {
             final msg = msgs[i];
 
             switch (msg.type) {
-                case PackageType.HANDSHAKE: this.handshake(msg.body);
-                case PackageType.HEARTBEAT:
+                case PackageType.HANDSHAKE: handshake(msg.body);
+                case PackageType.HEARTBEAT: heartbeat();
                 case PackageType.DATA:
                 case PackageType.KICK:
             }
@@ -190,30 +252,30 @@ class Client {
 
         switch (data.code) {
             case ClientDef.RES_OK:
-                this.handshake_init(data);
+                handshake_init(data);
 
                 final pkg = Package.encode(PackageType.HANDSHAKE_ACK);
-                this.send(pkg);
-                this.initial_callback();
+                send(pkg);
+                initial_callback();
 
             case ClientDef.RES_OLD_CLIENT:
-                this.emitter.emit(ON_ERROR, "client version can't fullfill");
+                emitter.emit(ON_ERROR, "client version can't fullfill");
 
             default:
-                this.emitter.emit(ON_ERROR, 'handshake fail');
+                emitter.emit(ON_ERROR, 'handshake fail');
         }
     }
 
     function handshake_init(data: Dynamic): Void {
         if (data.sys != null && data.sys.heartbeat > 0) {
-            this.heartbeatInterval = Std.int(data.sys.heartbeat) * 1000;
-            this.heartbeatTimeout = this.heartbeatInterval * 2;
+            heartbeatInterval = Std.int(data.sys.heartbeat) * 1000;
+            heartbeatTimeout = heartbeatInterval * 2;
         } else {
-            this.heartbeatInterval = 0;
-            this.heartbeatTimeout = 0;
+            heartbeatInterval = 0;
+            heartbeatTimeout = 0;
         }
 
-        this.handshake_callback(data.user);
+        handshake_callback(data.user);
     }
 
     dynamic function handshake_callback(user: Dynamic): Void {
@@ -233,8 +295,8 @@ class Client {
         if (dict != null) {
             for (k in Reflect.fields(dict)) {
                 final v = Reflect.field(dict, k);
-                this.routeDict.set(k, v);
-                this.routeAbbrs.set(v, k);
+                routeDict.set(k, v);
+                routeAbbrs.set(v, k);
             }
         }
     }
@@ -242,18 +304,18 @@ class Client {
     function reset(): Void {
         trace('pomelo client reset.');
 
-        this.reconnect = false;
-        this.reconnectionDelay = 5000;
-        this.reconnectAttempts = 0;
-        this.reconnectTimer?.stop();
+        reconnect = false;
+        reconnectionDelay = 5000;
+        reconnectAttempts = 0;
+        reconnectTimer?.stop();
     }
 
     function default_decode(data: Bytes): Any {
         var msg = Message.decode(data);
 
         if (msg.id > 0) {
-            msg.sRoute = this.pendingRequests[msg.id];
-            this.pendingRequests[msg.id] = null;
+            msg.sRoute = pendingRequests[msg.id];
+            pendingRequests[msg.id] = null;
 
             if (msg.sRoute == null || msg.sRoute.length == 0) {
                 return null;
@@ -269,16 +331,16 @@ class Client {
 
         var buffer: Bytes;
 
-        if (this.decodeIO_encoder != null && this.decodeIO_encoder.lookup(sRoute)) {
-            buffer = this.decodeIO_encoder.build(sRoute).encode(msg);
+        if (decodeIO_encoder != null && decodeIO_encoder.lookup(sRoute)) {
+            buffer = decodeIO_encoder.build(sRoute).encode(msg);
         } else {
             buffer = Protocol.str_encode(haxe.Json.stringify(msg));
         }
 
         var compressRoute = false;
         var iRoute: Int = 0;
-        if (this.routeDict.exists(sRoute)) {
-            iRoute = this.routeDict.get(sRoute);
+        if (routeDict.exists(sRoute)) {
+            iRoute = routeDict.get(sRoute);
             compressRoute = true;
         }
 
@@ -289,17 +351,17 @@ class Client {
         var route: String;
 
         if (msg.compressRoute) {
-            if (!this.routeAbbrs.exists(msg.iRoute)) {
+            if (!routeAbbrs.exists(msg.iRoute)) {
                 return {};
             }
 
-            route = this.routeAbbrs.get(msg.iRoute);
+            route = routeAbbrs.get(msg.iRoute);
         } else {
             route = msg.sRoute;
         }
 
-        if (this.decodeIO_decoder != null && this.decodeIO_decoder.lookup(route)) {
-            return this.decodeIO_decoder.build(route).decode(msg.body);
+        if (decodeIO_decoder != null && decodeIO_decoder.lookup(route)) {
+            return decodeIO_decoder.build(route).decode(msg.body);
         } else {
             return haxe.Json.parse(Protocol.str_decode(msg.body));
         }
