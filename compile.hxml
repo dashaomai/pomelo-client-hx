@@ -1,0 +1,8 @@
+--class-path src
+--main Main
+--library Emitter
+--library colyseus-websocket
+
+--each
+
+--hl dist/pomelo-client-hx.hl
