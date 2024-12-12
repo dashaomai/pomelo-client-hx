@@ -36,3 +36,12 @@ class ProtocolDef {
     static public final MSG_COMPRESS_ROUTE_MASK = 0x1;
     static public final MSG_TYPE_MASK = 0x7;
 }
+
+class ClientDef {
+    static public final HX_WS_CLIENT_TYPE = 'hx-websocket';
+    static public final HX_WS_CLIENT_VERSION = '0.1.0';
+
+    static public final RES_OK = 200;
+    static public final RES_FAIL = 500;
+    static public final RES_OLD_CLIENT = 501;
+}

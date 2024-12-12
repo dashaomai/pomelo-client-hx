@@ -1,3 +1,13 @@
+package pomelo;
+
+import pomelo.Consts.ClientDef;
+import pomelo.Message.MessageData;
+import pomelo.DecodeIO.EncodeBuilder;
+import pomelo.Consts.MessageType;
+import pomelo.Package.PackageData;
+import pomelo.Consts.PackageType;
+import pomelo.DecodeIO.IDecodeIODecoder;
+import pomelo.DecodeIO.IDecodeIOEncoder;
 import haxe.net.WebSocket;
 import emitter.signals.Emitter;
 import haxe.io.Bytes;
@@ -101,7 +111,7 @@ class Client {
 
         maxReconnectAttempts = params?.maxReconnectAttempts ?? Client.DEFAULT_MAX_RECONNECT_ATTEMPTS;
 
-        this.socket = WebSocket.create(url);
+        this.socket = WebSocket.create(url, [], true);
         this.socket.onopen = function (): Void {
             if (this.reconnect) {
                 this.emitter.emit(Client.ON_RECONNECT);
@@ -132,7 +142,7 @@ class Client {
             this.emitter.emit(ON_IO_ERROR, message);
             trace('socket error:', message);
         };
-        this.socket.onclose = function (evt: Dynamic): Void {
+        this.socket.onclose = function (?evt: Dynamic): Void {
             this.emitter.emit(ON_CLOSE, evt);
         };
     }
@@ -158,14 +168,14 @@ class Client {
         var data = Json.parse(Protocol.str_decode(body));
 
         switch (data.code) {
-            case Client.RES_OK:
+            case ClientDef.RES_OK:
                 this.handshake_init(data);
 
                 final pkg = Package.encode(PackageType.HANDSHAKE_ACK);
                 this.send(pkg);
                 this.initial_callback();
 
-            case Client.RES_OLD_CLIENT:
+            case ClientDef.RES_OLD_CLIENT:
                 this.emitter.emit(ON_ERROR, "client version can't fullfill");
 
             default:
@@ -175,7 +185,7 @@ class Client {
 
     function handshake_init(data: Dynamic): Void {
         if (data.sys != null && data.sys.heartbeat > 0) {
-            this.heartbeatInterval = data.sys.heartbeat * 1000;
+            this.heartbeatInterval = Std.int(data.sys.heartbeat) * 1000;
             this.heartbeatTimeout = this.heartbeatInterval * 2;
         } else {
             this.heartbeatInterval = 0;
@@ -198,9 +208,10 @@ class Client {
             return;
         }
 
-        final dict = data.sys.dict;
+        final dict: Dynamic = data.sys.dict;
         if (dict != null) {
-            for (k => v in dict) {
+            for (k in Reflect.fields(dict)) {
+                final v = Reflect.field(dict, k);
                 this.routeDict.set(k, v);
                 this.routeAbbrs.set(v, k);
             }
@@ -222,7 +233,7 @@ class Client {
             this.pendingRequests[msg.id] = null;
 
             if (msg.sRoute == null || msg.sRoute.length == 0) {
-                return;
+                return null;
             }
         }
 
@@ -236,8 +247,7 @@ class Client {
         var buffer: Bytes;
 
         if (this.decodeIO_encoder != null && this.decodeIO_encoder.lookup(sRoute)) {
-            final Builder = this.decodeIO_encoder.build(sRoute);
-            buffer = new Builder(msg).encodeNB();
+            buffer = this.decodeIO_encoder.build(sRoute).encode(msg);
         } else {
             buffer = Protocol.str_encode(haxe.Json.stringify(msg));
         }

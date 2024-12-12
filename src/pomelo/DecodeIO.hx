@@ -8,13 +8,7 @@ interface IDecodeIOEncoder {
 }
 
 abstract class EncodeBuilder {
-    final message: Any;
-
-    public function new(msg: Any): Void {
-        this.message = msg;
-    }
-
-    public abstract function encodeNB(): Bytes;
+    public abstract function encode(body: Dynamic): Bytes;
 }
 
 interface IDecodeIODecoder {
@@ -24,11 +18,5 @@ interface IDecodeIODecoder {
 }
 
 abstract class DecodeBuilder {
-    final message: Any;
-
-    public function new(msg: Any): Void {
-        this.message = msg;
-    }
-
     public abstract function decode(body: Bytes): Dynamic;
 }

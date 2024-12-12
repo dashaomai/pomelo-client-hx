@@ -113,11 +113,11 @@ class Message {
 
         // parse id
         if (msg_has_id(type)) {
-//            var m = bytes.get(offset);
+            var m: Int;
             var i = 0;
 
             do {
-                var m = bytes.get(offset);
+                m = bytes.get(offset);
                 id = id + ((m & 0x7f) * Std.int(Math.pow(2, 7 * i)));
                 offset++;
                 i++;
@@ -155,7 +155,8 @@ class Message {
             compressRoute: compressRoute,
             sRoute: sRoute,
             iRoute: iRoute,
-            body: Bytes,
+            body: body,
+            payload: null,
         };
     }
 }
