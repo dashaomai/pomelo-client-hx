@@ -6,3 +6,7 @@
 --each
 
 --hl dist/pomelo-client-hx.hl
+
+--next
+
+--js dist/pomelo-client-hx.js
