@@ -3,6 +3,11 @@ package pomelo;
 import pomelo.Consts.ProtocolDef;
 import haxe.io.Bytes;
 
+typedef PackageData = {
+    final type: Int;
+    final body: Null<Bytes>;
+}
+
 /**
  * Package process
  */
@@ -58,13 +63,13 @@ class Package {
      * @param  {Bytes} buffer byte array containing package content
      * @return {Object}           {type: package type, body: body byte array}
      */
-    static public function decode(buffer: Bytes) {
+    static public function decode(buffer: Bytes): Array<PackageData> {
         var len = buffer.length;
         var bytes = Bytes.alloc(len);
         bytes.blit(0, buffer, 0, len);
 
         var offset = 0;
-        var results: Array<{type: Int, ?body: Bytes}> = [];
+        var results: Array<PackageData> = [];
 
         while (offset < bytes.length) {
             var type = bytes.get(offset++);

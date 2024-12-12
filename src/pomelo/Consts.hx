@@ -3,22 +3,22 @@ package pomelo;
 /**
  * 封包类型
  */
-enum abstract PackageType(Int) {
-    final HANDSHAKE = 1;
-    final HANDSHAKE_ACK = 2;
-    final HEARTBEAT = 3;
-    final DATA = 4;
-    final KICK = 5;
+class PackageType {
+    static public final HANDSHAKE = 1;
+    static public final HANDSHAKE_ACK = 2;
+    static public final HEARTBEAT = 3;
+    static public final DATA = 4;
+    static public final KICK = 5;
 }
 
 /**
  * 消息类型
  */
-enum abstract MessageType(Int) {
-    final REQUEST = 0;
-    final NOTIFY = 1;
-    final RESPONSE = 2;
-    final PUSH = 3;
+class MessageType {
+    static public final REQUEST = 0;
+    static public final NOTIFY = 1;
+    static public final RESPONSE = 2;
+    static public final PUSH = 3;
 }
 
 /**

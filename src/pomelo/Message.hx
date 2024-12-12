@@ -9,9 +9,10 @@ typedef MessageData = {
     final id: Int;
     final type: Int;
     final compressRoute: Bool;
-    final sRoute: String;          // route in string, compressRoute MUST!!! be false
+    var sRoute: String;          // route in string, compressRoute MUST!!! be false
     final iRoute: Int;             // route in int, compressRoute MUST!!! be true
     final body: Bytes;
+    var payload: Dynamic;          // the decoded data
 }
 
 /**
@@ -31,25 +32,26 @@ class Message {
      * @param  id            message id
      * @param  type          message type
      * @param  compressRoute whether compress route
-     * @param  route         route code or route string
+     * @param  sRoute        route string
+     * @param  iRoute        route int (compressed route)
      * @param  msg           message body bytes
      * @return {Bytes}       encode result
      */
-    static public function encode(id: Int, type: Int, compressRoute: Bool, route: Any, msg: Bytes): Bytes {
+    static public function encode(id: Int, type: Int, compressRoute: Bool, sRoute: String, iRoute: Int, msg: Bytes): Bytes {
         var idBytes = msg_has_id(type) ? calculate_msg_id_bytes(id) : 0;
         var msgLen = ProtocolDef.MSG_FLAG_BYTES + idBytes;
 
         if (msg_has_route(type)) {
             if (compressRoute) {
-                if (!(route is Int)) {
+                if (iRoute == 0) {
                     throw 'error flag for number route!';
                 }
 
                 msgLen += ProtocolDef.MSG_ROUTE_CODE_BYTES;
             } else {
                 msgLen += ProtocolDef.MSG_ROUTE_LEN_BYTES;
-                if (route != null && route is String) {
-                    var bRoute = Protocol.str_encode((route : String));
+                if (sRoute != null && sRoute.length > 0) {
+                    var bRoute = Protocol.str_encode(sRoute);
                     if (bRoute.length > 255) {
                         throw 'route max-length is overflow';
                     }
@@ -76,7 +78,7 @@ class Message {
 
         // add route
         if (msg_has_route(type)) {
-            offset = encode_msg_route(compressRoute, route, buffer, offset);
+            offset = encode_msg_route(compressRoute, sRoute, iRoute, buffer, offset);
         }
 
         // add body
@@ -215,18 +217,16 @@ function encode_msg_id(id: Int, buffer: Bytes, offset: Int): Int {
     return offset;
 }
 
-function encode_msg_route(compressRoute: Bool, route: Any, buffer: Bytes, offset: Int): Int {
+function encode_msg_route(compressRoute: Bool, route: String, iRoute: Int, buffer: Bytes, offset: Int): Int {
     if (compressRoute) {
-        var nRoute: Int = (route : Int);
-
-        if (nRoute > ProtocolDef.MSG_ROUTE_CODE_MAX) {
+        if (iRoute > ProtocolDef.MSG_ROUTE_CODE_MAX) {
             throw 'route number is overflow';
         }
 
-        buffer.set(offset++, (nRoute >> 8) & 0xff);
-        buffer.set(offset++, route & 0xff);
+        buffer.set(offset++, (iRoute >> 8) & 0xff);
+        buffer.set(offset++, iRoute & 0xff);
     } else {
-        var bRoute: Bytes = Bytes.ofString((route : String), Encoding.UTF8);
+        var bRoute: Bytes = Bytes.ofString(route, Encoding.UTF8);
 
         if (bRoute != null && bRoute.length > 0) {
             buffer.set(offset++, bRoute.length & 0xff);
