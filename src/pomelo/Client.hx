@@ -2,7 +2,6 @@ package pomelo;
 
 import pomelo.Consts.ClientDef;
 import pomelo.Message.MessageData;
-import pomelo.DecodeIO.EncodeBuilder;
 import pomelo.Consts.MessageType;
 import pomelo.Package.PackageData;
 import pomelo.Consts.PackageType;
@@ -55,6 +54,10 @@ class Client {
     final url: String;
     var socket: WebSocket;
 
+    #if sys
+    final socketTicker: Timer;
+    #end
+
     public final emitter: Emitter;
 
     var heartbeatInterval: Int;
@@ -89,6 +92,15 @@ class Client {
 
         this.url = url;
 
+        #if sys
+        this.socketTicker = new Timer(100);
+        this.socketTicker.run = () -> {
+            if (this.socket != null) {
+                this.socket.process();
+            }
+        };
+        #end
+
         this.emitter = new Emitter();
 
         this.decode = this.default_decode;
@@ -117,6 +129,8 @@ class Client {
                 this.emitter.emit(Client.ON_RECONNECT);
             }
 
+            trace('pomelo client onOpen');
+
             this.reset();
 
             final packet = Package.encode(
@@ -129,6 +143,8 @@ class Client {
             this.send(packet);
         };
         this.socket.onmessageBytes = function (message: Bytes): Void {
+            trace('pomelo client receive ${message.length} bytes.');
+
             this.process_package(Package.decode(message));
 
             if (this.heartbeatTimeout > 0) {
@@ -139,15 +155,20 @@ class Client {
             trace(message);
         };
         this.socket.onerror = function (message: String): Void {
+            trace('pomelo client error:', message);
+
             this.emitter.emit(ON_IO_ERROR, message);
-            trace('socket error:', message);
         };
         this.socket.onclose = function (?evt: Dynamic): Void {
+            trace('pomelo client closed.');
+
             this.emitter.emit(ON_CLOSE, evt);
         };
     }
 
     function send(packet: Bytes): Void {
+        trace('pomelo client send ${packet.length} bytes.');
+
         this.socket.sendBytes(packet);
     }
 
@@ -219,6 +240,8 @@ class Client {
     }
 
     function reset(): Void {
+        trace('pomelo client reset.');
+
         this.reconnect = false;
         this.reconnectionDelay = 5000;
         this.reconnectAttempts = 0;
