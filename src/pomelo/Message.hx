@@ -11,7 +11,7 @@ typedef MessageData = {
     final compressRoute: Bool;
     var sRoute: String;          // route in string, compressRoute MUST!!! be false
     final iRoute: Int;             // route in int, compressRoute MUST!!! be true
-    final body: Bytes;
+    var body: Null<Bytes>;
     var payload: Dynamic;          // the decoded data
 }
 

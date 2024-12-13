@@ -29,24 +29,25 @@ typedef ConnectParams = {
 }
 
 class Client {
-    static final HX_WS_CLIENT_TYPE = 'hx-websocket';
-    static final HX_WS_CLIENT_VERSION = '0.1.0';
+    static final MAX_REQUEST_ID = 128;
+    static final DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 
     static final HAND_SHAKE_DATA: HandshakeData = {
         sys: {
-            type: Client.HX_WS_CLIENT_TYPE,
-            version: Client.HX_WS_CLIENT_VERSION,
+            type: ClientDef.HX_WS_CLIENT_TYPE,
+            version: ClientDef.HX_WS_CLIENT_VERSION,
             rsa: {},
         },
         user: {},
     }
 
-    static final DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
-
     static var ON_RECONNECT: SignalType<Void -> Void> = "on_reconnect";
     static var ON_ERROR: SignalType1<Void -> Void, String> = "on_error";
     static var ON_IO_ERROR: SignalType1<Void -> Void, String> = "on_io_error";
     static var ON_CLOSE: SignalType1<Void -> Void, Dynamic> = "on_close";
+
+    static var ON_PUSH: SignalType2<Void -> Void, String, Dynamic> = "on_push";
+    static var ON_KICK: SignalType1<Void -> Void, Null<Dynamic>> = "on_kick";
 
     final decodeIO_encoder: Null<IDecodeIOEncoder>;
     final decodeIO_decoder: Null<IDecodeIODecoder>;
@@ -67,8 +68,8 @@ class Client {
     var heartbeatTimer: Timer;
     var heartbeatTimeoutTimer: Timer;
 
-    final encode: Any;
-    final decode: Any;
+    final encode: (Int, String, Any) -> Bytes;
+    final decode: Bytes -> MessageData;
 
     var reconnect: Bool;
     var reconnectAttempts: Int;
@@ -79,8 +80,11 @@ class Client {
     final routeDict: Map<String, Int>;
     // compacted route from route code -> route string
     final routeAbbrs: Map<Int, String>;
+
     // pending requests from request-id -> route
     final pendingRequests: Vector<Null<String>>;
+    // pending request cb from request-id -> callbcack
+    final pendingCallbacks: Vector<Null<Dynamic -> Void>>;
 
     public function new(
         url: String,
@@ -109,7 +113,10 @@ class Client {
 
         routeDict = new Map();
         routeAbbrs = new Map();
-        pendingRequests = new Vector(128);
+
+        // request id in range(1~127)
+        pendingRequests = new Vector(MAX_REQUEST_ID);
+        pendingCallbacks = new Vector(MAX_REQUEST_ID);
 
         if (handshakeCallback != null) {
             handshake_callback = handshakeCallback;
@@ -241,9 +248,24 @@ class Client {
             switch (msg.type) {
                 case PackageType.HANDSHAKE: handshake(msg.body);
                 case PackageType.HEARTBEAT: heartbeat();
-                case PackageType.DATA:
-                case PackageType.KICK:
+                case PackageType.DATA: handle_data(msg);
+                case PackageType.KICK: handle_kick(msg.body);
             }
+        }
+    }
+
+    function process_message(msg: MessageData) {
+        if (msg.id == 0) {
+            // server push message
+            emitter.emit(ON_PUSH, msg.sRoute, msg.payload);
+            return;
+        }
+
+        // if an id exists, find the callback with this request
+        final cb = pendingCallbacks[msg.id];
+        if (cb != null) {
+            pendingCallbacks[msg.id] = null;
+            cb(msg.payload);
         }
     }
 
@@ -301,6 +323,24 @@ class Client {
         }
     }
 
+    function handle_data(data: PackageData): Void {
+        if (decode != null) {
+            var msg = decode(data.body);
+
+            process_message(msg);
+        }
+    }
+
+    function handle_kick(data: Bytes): Void {
+        var kickInfo: Dynamic = null;
+
+        if (data != null) {
+            kickInfo = Json.parse(Protocol.str_decode(data));
+        }
+
+        emitter.emit(ON_KICK, kickInfo);
+    }
+
     function reset(): Void {
         trace('pomelo client reset.');
 
@@ -310,7 +350,7 @@ class Client {
         reconnectTimer?.stop();
     }
 
-    function default_decode(data: Bytes): Any {
+    function default_decode(data: Bytes): MessageData {
         var msg = Message.decode(data);
 
         if (msg.id > 0) {
@@ -323,6 +363,7 @@ class Client {
         }
 
         msg.payload = de_compose(msg);
+        msg.body = null;
         return msg;
     }
 
