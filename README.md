@@ -20,7 +20,7 @@ with the successful design of the communication layer, many of new game server s
 
 First you need a game-server in pomelo or alternative framework like: pinus, nano, pitaya, etc.
 
-Next, in hexa project, install the pomelo-client-hx library via haxelib:
+Next, in a haxe project, install the pomelo-client-hx library via haxelib:
 
 ```shell
 haxelib install pomelo-client-hx
