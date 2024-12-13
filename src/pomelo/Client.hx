@@ -91,7 +91,11 @@ class Client {
     final pendingCallbacks: Map<Int, Null<ResponseCb>>;
 
     // the request-id counter
+    #if js
+    var requestId: Int;
+    #else
     final requestId: AtomicInt;
+    #end
 
     public function new(
         url: String
@@ -123,7 +127,11 @@ class Client {
         pendingRequests = new Map();
         pendingCallbacks = new Map();
 
+        #if js
+        requestId = 1;
+        #else
         requestId = new AtomicInt(1);
+        #end
     }
 
     public function connect(?params: ConnectParams):Void {
@@ -197,7 +205,11 @@ class Client {
             return;
         }
 
+        #if js
+        var reqId = requestId++;
+        #else
         var reqId = requestId.add(1);
+        #end
 
         pendingRequests.set(reqId, route);
         pendingCallbacks.set(reqId, cb);
@@ -371,7 +383,11 @@ class Client {
         reconnectAttempts = 0;
         reconnectTimer?.stop();
 
+        #if js
+        requestId = 1;
+        #else
         requestId.exchange(1);
+        #end
     }
 
     function default_decode(data: Bytes): MessageData {
