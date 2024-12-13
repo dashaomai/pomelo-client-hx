@@ -3,7 +3,7 @@
     "url": "https://github.com/dashaomai/pomelo-client-hx",
     "license": "MIT",
     "tags": ["pomelo", "pinus", "pitaya", "nano", "game", "client", "websocket"],
-    "description": "This is a client designed for many game server based on pomelo-family protocol, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.",
+    "description": "This is a client designed for many game server based on pomelo-family protocol.",
     "version": "0.1.0",
     "classPath": "src",
     "releasenote": "This is a client designed for many game server based on pomelo-family protocol, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.",
