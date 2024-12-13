@@ -5,8 +5,11 @@
 
 --each
 
---hl dist/pomelo-client-hx.hl
+--js dist/pomelo-client-hx.js
 
 --next
 
---js dist/pomelo-client-hx.js
+--hl dist/pomelo-client-hx.hl
+--define hl-ver=1.13.0
+
+--next
