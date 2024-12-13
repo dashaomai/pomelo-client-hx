@@ -1,5 +1,6 @@
 package pomelo;
 
+import haxe.atomic.AtomicInt;
 import pomelo.Consts.ClientDef;
 import pomelo.Message.MessageData;
 import pomelo.Consts.MessageType;
@@ -10,7 +11,6 @@ import pomelo.DecodeIO.IDecodeIOEncoder;
 import haxe.net.WebSocket;
 import emitter.signals.Emitter;
 import haxe.io.Bytes;
-import haxe.ds.Vector;
 import haxe.Timer;
 import emitter.signals.SignalType;
 import haxe.Json;
@@ -28,8 +28,9 @@ typedef ConnectParams = {
     final maxReconnectAttempts: Int;
 }
 
+typedef ResponseCb = Dynamic -> Void;
+
 class Client {
-    static final MAX_REQUEST_ID = 128;
     static final DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 
     static final HAND_SHAKE_DATA: HandshakeData = {
@@ -41,13 +42,16 @@ class Client {
         user: {},
     }
 
-    static var ON_RECONNECT: SignalType<Void -> Void> = "on_reconnect";
-    static var ON_ERROR: SignalType1<Void -> Void, String> = "on_error";
-    static var ON_IO_ERROR: SignalType1<Void -> Void, String> = "on_io_error";
-    static var ON_CLOSE: SignalType1<Void -> Void, Dynamic> = "on_close";
+    static public var ON_RECONNECT: SignalType<Void -> Void> = "on_reconnect";
+    static public var ON_ERROR: SignalType1<String -> Void, String> = "on_error";
+    static public var ON_IO_ERROR: SignalType1<String -> Void, String> = "on_io_error";
+    static public var ON_CLOSE: SignalType1<Dynamic -> Void, Dynamic> = "on_close";
 
-    static var ON_PUSH: SignalType2<Void -> Void, String, Dynamic> = "on_push";
-    static var ON_KICK: SignalType1<Void -> Void, Null<Dynamic>> = "on_kick";
+    static public var ON_PUSH: SignalType2<(String, Dynamic) -> Void, String, Dynamic> = "on_push";
+    static public var ON_KICK: SignalType1<Null<Dynamic> -> Void, Null<Dynamic>> = "on_kick";
+
+    static public var ON_HANDSHAKE: SignalType1<Null<Dynamic> -> Void, Null<Dynamic>> = "on_handshake";
+    static public var ON_INITIALIZE: SignalType<Void -> Void> = "on_initialize";
 
     final decodeIO_encoder: Null<IDecodeIOEncoder>;
     final decodeIO_decoder: Null<IDecodeIODecoder>;
@@ -82,14 +86,15 @@ class Client {
     final routeAbbrs: Map<Int, String>;
 
     // pending requests from request-id -> route
-    final pendingRequests: Vector<Null<String>>;
+    final pendingRequests: Map<Int, Null<String>>;
     // pending request cb from request-id -> callbcack
-    final pendingCallbacks: Vector<Null<Dynamic -> Void>>;
+    final pendingCallbacks: Map<Int, Null<ResponseCb>>;
+
+    // the request-id counter
+    final requestId: AtomicInt;
 
     public function new(
-        url: String,
-        ?handshakeCallback: Dynamic -> Void,
-        ?initialCallback: Void -> Void
+        url: String
     ) {
         // TODO
         decodeIO_encoder = null;
@@ -114,16 +119,11 @@ class Client {
         routeDict = new Map();
         routeAbbrs = new Map();
 
-        // request id in range(1~127)
-        pendingRequests = new Vector(MAX_REQUEST_ID);
-        pendingCallbacks = new Vector(MAX_REQUEST_ID);
+        // request states
+        pendingRequests = new Map();
+        pendingCallbacks = new Map();
 
-        if (handshakeCallback != null) {
-            handshake_callback = handshakeCallback;
-        }
-        if (initialCallback != null) {
-            initial_callback = initialCallback;
-        }
+        requestId = new AtomicInt(1);
     }
 
     public function connect(?params: ConnectParams):Void {
@@ -174,7 +174,7 @@ class Client {
         };
     }
 
-    function disconnect() {
+    public function disconnect() {
         if (socket != null) {
             socket.close();
             trace('pomelo client disconnect');
@@ -190,6 +190,32 @@ class Client {
             heartbeatTimeoutTimer = null;
         }
 
+    }
+
+    public function request(route: String, msg: Null<Any>, cb: ResponseCb): Void {
+        if (route == null || route.length == 0) {
+            return;
+        }
+
+        var reqId = requestId.add(1);
+
+        pendingRequests.set(reqId, route);
+        pendingCallbacks.set(reqId, cb);
+        
+        send_message(reqId, route, msg);
+    }
+
+    public function notify(route, msg: Null<Any>): Void {
+        send_message(0, route, msg);
+    }
+
+    function send_message(reqId: Int, route: String, msg: Null<Any>): Void {
+        if (encode != null) {
+            var data = encode(reqId, route, msg);
+
+            var packet = Package.encode(PackageType.DATA, data);
+            send(packet);
+        }
     }
 
     function send(packet: Bytes): Void {
@@ -262,10 +288,13 @@ class Client {
         }
 
         // if an id exists, find the callback with this request
-        final cb = pendingCallbacks[msg.id];
-        if (cb != null) {
-            pendingCallbacks[msg.id] = null;
-            cb(msg.payload);
+        if (pendingCallbacks.exists(msg.id)) {
+            final cb = pendingCallbacks.get(msg.id);
+            pendingCallbacks.remove(msg.id);
+
+            if (cb != null) {
+                cb(msg.payload);
+            }
         }
     }
 
@@ -278,7 +307,8 @@ class Client {
 
                 final pkg = Package.encode(PackageType.HANDSHAKE_ACK);
                 send(pkg);
-                initial_callback();
+                
+                emitter.emit(ON_INITIALIZE);
 
             case ClientDef.RES_OLD_CLIENT:
                 emitter.emit(ON_ERROR, "client version can't fullfill");
@@ -297,15 +327,7 @@ class Client {
             heartbeatTimeout = 0;
         }
 
-        handshake_callback(data.user);
-    }
-
-    dynamic function handshake_callback(user: Dynamic): Void {
-
-    }
-
-    dynamic function initial_callback(): Void {
-
+        emitter.emit(ON_HANDSHAKE, data.user);
     }
 
     function init_data(data: Dynamic): Void {
@@ -348,14 +370,16 @@ class Client {
         reconnectionDelay = 5000;
         reconnectAttempts = 0;
         reconnectTimer?.stop();
+
+        requestId.exchange(1);
     }
 
     function default_decode(data: Bytes): MessageData {
         var msg = Message.decode(data);
 
-        if (msg.id > 0) {
-            msg.sRoute = pendingRequests[msg.id];
-            pendingRequests[msg.id] = null;
+        if (msg.id > 0 && pendingRequests.exists(msg.id)) {
+            msg.sRoute = pendingRequests.get(msg.id);
+            pendingRequests.remove(msg.id);
 
             if (msg.sRoute == null || msg.sRoute.length == 0) {
                 return null;
