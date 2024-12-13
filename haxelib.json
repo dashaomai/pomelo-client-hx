@@ -1,16 +1,16 @@
 {
     "name": "pomelo-client-hx",
-    "url": "",
+    "url": "https://github.com/dashaomai/pomelo-client-hx",
     "license": "MIT",
-    "tags": ["pomelo", "pinus", "pitaya", "client", "websocket"],
-    "description": "This library is a client for pomelo bi-communication, compatible with pinus, nano and pitaya.",
+    "tags": ["pomelo", "pinus", "pitaya", "nano", "game", "client", "websocket"],
+    "description": "This is a client designed for many game server based on pomelo-family protocol, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.",
     "version": "0.1.0",
     "classPath": "src",
-    "releasenote": "First we just support pomelo.",
+    "releasenote": "This is a client designed for many game server based on pomelo-family protocol, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.",
     "contributors": ["dashaomai"],
     "dependencies": {
         "Emitter": "0.9.1",
         "colyseus-websocket": "1.0.14"
     },
-    "main": "client.Main"
+    "main": "Main"
 }

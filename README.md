@@ -1,6 +1,6 @@
 # Pomelo Client Hx
 
-This is a client designed for many pomelo-family protocol, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.
+This is a client designed for many pomelo-like frameworks, like pomelo(node.js), pinus(typescript), nano(golang), pitaya(golang) etc.
 
 # Who's pomelo?
 
@@ -18,7 +18,17 @@ with the successful design of the communication layer, many of new game server s
 
 ## Usage
 
-```hx
+First you need a game-server in pomelo or alternative framework like: pinus, nano, pitaya, etc.
+
+Next, in hexa project, install the pomelo-client-hx library via haxelib:
+
+```shell
+haxelib install pomelo-client-hx
+```
+
+Then create and use the client like this:
+
+```haxe
 import pomelo.Client;
 
 // create a client but not connect immediately
@@ -26,7 +36,15 @@ var client: Client = new Client('ws://localhost:3510/');
 
 // listen on initialize means you are connected successful and can do every request you want now
 client.emitter.on(Client.ON_INITIALIZE, () -> {
-    entry(client, "346bacd9-7830-4092-bfcc-75e0bab1ba4e");
+    client.request(
+        'connector.entryHandler.entry',
+        {
+            accoundId: 'account-id-uuid',
+        },
+        entryResponse -> {
+            trace('entry successfule:', entryResponse);
+        }
+    );
 });
 
 // listen on push can handle messages from server pushing
