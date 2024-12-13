@@ -20,12 +20,6 @@ typedef MessageData = {
  **/
 class Message {
 
-
-    /* static public final TYPE_REQUEST = 0;
-    static public final TYPE_NOTIFY = 1;
-    static public final TYPE_RESPONSE = 2;
-    static public final TYPE_PUSH = 3; */
-
     /**
      * Message protocol encode.
      *

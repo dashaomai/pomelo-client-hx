@@ -12,11 +12,6 @@ typedef PackageData = {
  * Package process
  */
 class Package {
-    /* static public final TYPE_HANDSHAKE = 1;
-    static public final TYPE_HANDSHAKE_ACK = 2;
-    static public final TYPE_HEARTBEAT = 3;
-    static public final TYPE_DATA = 4;
-    static public final TYPE_KICK = 5; */
 
     /**
      * Package protocol encode.
